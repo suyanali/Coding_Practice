@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer and Counter</title>
+    <style>
+        .container {
+            text-align: center;
+            margin-top: 50px;
+        }
+        .display {
+            font-size: 2em;
+            margin: 20px;
+        }
+        .buttons {
+            margin: 10px;
+        }
+        .buttons button {
+            font-size: 1.5em; /* 增大字体 */
+            margin: 5px;
+        }
+        .big-button {
+            font-size: 1.7em; /* 更大的字体 */
+        }
+        .active {
+            background-color: #555; /* 深灰色 */
+            color: white;
+        }
+        .instructions {
+            margin-top: 20px;
+            font-size: 1em;
+            text-align: left;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div>
+        <div class="display" id="current-timer-display">目前秒數：0</div>
+        <div class="display" id="target-timer-display">目標：0</div>
+        <div class="buttons">
+            <button onclick="changeTimerTarget(1)">+1秒</button>
+            <button onclick="changeTimerTarget(-1)">-1秒</button>
+            <button onclick="changeTimerTarget(10)">+10秒</button>
+            <button onclick="changeTimerTarget(-10)">-10秒</button>
+            <button onclick="changeTimerTarget(30)">+30秒</button>
+            <button onclick="changeTimerTarget(-30)">-30秒</button>
+            <button onclick="changeTimerTarget(60)">+1分鐘</button>
+            <button onclick="changeTimerTarget(-60)">-1分鐘</button>
+        </div>
+        <div class="buttons">
+            <button id="count-up-btn" onclick="setCountUp()">正數</button>
+            <button id="count-down-btn" onclick="setCountDown()">倒數</button>
+        </div>
+        <div class="buttons">
+            <button onclick="startTimer()">Start</button>
+            <button onclick="pauseTimer()">Pause</button>
+            <button onclick="clearTimer()">Clear</button>
+        </div>
+        <div class="buttons">
+            <label for="speak-interval">語音播報間隔(秒): </label>
+            <input type="number" id="speak-interval" value="5" min="1" style="width: 60px;">
+        </div>
+    </div>
+
+    <div>
+        <div class="display" id="counter-display">次數：0</div>
+        <div class="buttons">
+            <button class="big-button" onclick="incrementCounter()">+1</button>
+            <button onclick="decrementCounter()">-1</button>
+            <button onclick="clearCounter()">Clear</button>
+        </div>
+        <div class="buttons">
+            <button id="single-mode-btn" class="big-button active" onclick="setSingleMode()">單組</button>
+            <button id="multi-mode-btn" class="big-button" onclick="setMultiMode()">多組</button>
+        </div>
+        <div class="buttons" id="multi-group-controls" style="display: none;">
+            <button onclick="incrementTask()">+1任務</button>
+            <button onclick="decrementTask()">-1任務</button>
+            <div id="task-count-display">當前任務：1</div>
+        </div>
+    </div>
+
+    <div class="instructions">
+        操作說明：
+        <ol>
+            <li>倒計時：先按"正數"或"倒數"後再按數字決定目標秒數，可以設定間隔幾秒語音播報。</li>
+            <li>計數器：按+-來增減數字，每按一次"+1"會播報目前計數器上視窗顯示的次數。</li>
+        </ol>
+    </div>
+</div>
+
+<script>
+    let targetSeconds = 0;
+    let currentSeconds = 0;
+    let timerRunning = false;
+    let timerDirection = 1; // 1 for count up, -1 for count down
+    let timerInterval;
+    let speakInterval = 5; // Default speak interval
+    let speakCounter = 0;
+
+    let counterValue = 0;
+    let isSingleMode = true;
+    let taskCount = 1; // Default to 1 task
+
+    function updateTimerDisplay() {
+        document.getElementById('current-timer-display').innerText = `目前秒數：${formatTime(currentSeconds)}`;
+        document.getElementById('target-timer-display').innerText = `目標：${formatTime(targetSeconds)}`;
+    }
+
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+    }
+
+    function changeTimerTarget(increment) {
+        targetSeconds += increment;
+        if (targetSeconds < 0) {
+            targetSeconds = 0;
+        }
+        updateTimerDisplay();
+    }
+
+    function setCountUp() {
+        timerDirection = 1;
+        document.getElementById('count-up-btn').classList.add('active');
+        document.getElementById('count-down-btn').classList.remove('active');
+    }
+
+    function setCountDown() {
+        timerDirection = -1;
+        document.getElementById('count-down-btn').classList.add('active');
+        document.getElementById('count-up-btn').classList.remove('active');
+    }
+
+    function startTimer() {
+        if (!timerRunning) {
+            timerRunning = true;
+            currentSeconds = timerDirection === 1 ? 0 : targetSeconds;
+            speakInterval = parseInt(document.getElementById('speak-interval').value);
+            speakCounter = 0;
+            timerInterval = setInterval(runTimer, 1000);
+        }
+    }
+
+    function runTimer() {
+        if (timerDirection === 1) {
+            currentSeconds += 1;
+            if (currentSeconds >= targetSeconds) {
+                clearInterval(timerInterval);
+                timerRunning = false;
+                speak("時間到");
+            }
+        } else {
+            currentSeconds -= 1;
+            if (currentSeconds <= 0) {
+                clearInterval(timerInterval);
+                timerRunning = false;
+                speak("時間到");
+            }
+        }
+
+        speakCounter += 1;
+        if (speakCounter >= speakInterval) {
+            speakCounter = 0;
+            speak(currentSeconds);
+        }
+
+        updateTimerDisplay();
+    }
+
+    function pauseTimer() {
+        if (timerRunning) {
+            clearInterval(timerInterval);
+            timerRunning = false;
+        }
+    }
+
+    function clearTimer() {
+        timerRunning = false;
+        clearInterval(timerInterval);
+        targetSeconds = 0;
+        currentSeconds = 0;
+        updateTimerDisplay();
+    }
+
+    function incrementCounter() {
+        counterValue += 1;
+        updateCounterDisplay();
+        speak(counterValue);
+    }
+
+    function decrementCounter() {
+        counterValue -= 1;
+        updateCounterDisplay();
+    }
+
+    function clearCounter() {
+        counterValue = 0;
+        updateCounterDisplay();
+    }
+
+    function updateCounterDisplay() {
+        document.getElementById('counter-display').innerText = `次數：${counterValue}`;
+    }
+
+    function setSingleMode() {
+        isSingleMode = true;
+        document.getElementById('single-mode-btn').classList.add('active');
+        document.getElementById('multi-mode-btn').classList.remove('active');
+        document.getElementById('multi-group-controls').style.display = 'none';
+        taskCount = 1;
+    }
+
+    function setMultiMode() {
+        isSingleMode = false;
+        document.getElementById('multi-mode-btn').classList.add('active');
+        document.getElementById('single-mode-btn').classList.remove('active');
+        document.getElementById('multi-group-controls').style.display = 'block';
+    }
+
+    function incrementTask() {
+        taskCount += 1;
+        updateTaskCountDisplay();
+    }
+
+    function decrementTask() {
+        if (taskCount > 1) {
+            taskCount -= 1;
+            updateTaskCountDisplay();
+        }
+    }
+
+    function updateTaskCountDisplay() {
+        document.getElementById('task-count-display').innerText = `當前任務：${taskCount}`;
+    }
+
+    function speak(message) {
+        let msg = new SpeechSynthesisUtterance(message.toString());
+        window.speechSynthesis.speak(msg);
+    }
+</script>
+
+</body>
+</html>

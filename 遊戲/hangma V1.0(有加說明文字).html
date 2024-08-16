@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hangman Game with CSV Import</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .input-section, .game-section, .settings-section {
+            margin-bottom: 20px;
+        }
+        #upload-btn, #start-game-btn {
+            padding: 10px 20px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .letter {
+            display: inline-block;
+            font-size: 24px;
+            width: 30px;
+            height: 40px;
+            border-bottom: 2px solid #000;
+            text-align: center;
+            margin-right: 5px;
+        }
+        #cue-display {
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        #letters {
+            margin-top: 10px;
+        }
+        #hangman {
+            font-size: 50px;
+            color: red;
+            line-height: 50px;
+            white-space: pre;
+        }
+        #score, #question-number {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+        .instructions {
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Hangman Game with CSV Import</h1>
+
+    <div class="instructions">
+        歡迎來到Hangman遊戲：
+        <ol>
+            <li>題目匯入僅接受CSV格式，該檔案的 A 欄（從 A2 開始）會被讀取為單字，B 欄（從 B2 開始）會被讀取為提示。</li>
+            <li>可以勾選是否隨機出題。</li>
+            <li>Number of Questions：可以選擇出題數量。</li>
+            <li>自定義倒數計時：每題的時間可以由使用者設定，當時間用完時，系統會自動跳至下一題。</li>
+            <li>計分系統：當答對一題時，分數會自動加一。若答錯或時間到則不加分。每一題最多錯5次。</li>
+        </ol>
+    </div>
+
+    <div class="input-section">
+        <h2>Import Words and Cues from CSV</h2>
+        <input type="file" id="upload-btn" accept=".csv">
+    </div>
+
+    <div class="settings-section">
+        <h2>Game Settings</h2>
+        <label>
+            <input type="checkbox" id="randomize-questions"> Randomize Questions
+        </label><br>
+        <label>
+            Number of Questions: 
+            <input type="number" id="question-count" min="1" value="1">
+        </label><br>
+        <label>
+            Time per Question (seconds): 
+            <input type="number" id="time-per-question" min="10" value="30">
+        </label><br>
+        <button id="start-game-btn">Start Game</button>
+    </div>
+
+    <div class="game-section" style="display:none;">
+        <h2>Hangman Game</h2>
+        <div id="question-number"></div>
+        <div id="cue-display"></div>
+        <div id="word-display"></div>
+        <div id="letters"></div>
+        <div id="hangman"></div>
+        <div id="score"></div>
+        <div id="timer"></div>
+    </div>
+
+    <script>
+        let words = [];
+        let cues = [];
+        let currentWord = '';
+        let currentCue = '';
+        let mistakes = 0;
+        let score = 0;
+        let currentQuestion = 0;
+        let questionCount = 1;
+        let timePerQuestion = 30;
+        let timerInterval;
+
+        document.getElementById('upload-btn').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                readCSVFile(file);
+            }
+        });
+
+        document.getElementById('start-game-btn').addEventListener('click', function() {
+            questionCount = parseInt(document.getElementById('question-count').value);
+            timePerQuestion = parseInt(document.getElementById('time-per-question').value);
+
+            if (words.length > 0 && cues.length > 0) {
+                if (document.getElementById('randomize-questions').checked) {
+                    shuffleArray(words, cues);
+                }
+                startGame();
+            } else {
+                alert('Please upload a CSV file with words and cues!');
+            }
+        });
+
+        function readCSVFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                
+                words = [];
+                cues = [];
+
+                for (let i = 1; i < lines.length; i++) { // skip header
+                    const [word, cue] = lines[i].split(',');
+                    if (word && cue) {
+                        words.push(word.trim());
+                        cues.push(cue.trim());
+                    }
+                }
+
+                alert('Words and cues have been successfully loaded from CSV!');
+            };
+            reader.readAsText(file);
+        }
+
+        function startGame() {
+            score = 0;
+            currentQuestion = 0;
+            document.querySelector('.input-section').style.display = 'none';
+            document.querySelector('.settings-section').style.display = 'none';
+            document.querySelector('.game-section').style.display = 'block';
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            if (currentQuestion < questionCount && currentQuestion < words.length) {
+                currentQuestion++;
+                mistakes = 0;
+                currentWord = words[currentQuestion - 1].toUpperCase();
+                currentCue = cues[currentQuestion - 1];
+
+                document.getElementById('question-number').innerText = 'Question: ' + currentQuestion;
+                document.getElementById('cue-display').innerText = currentCue;
+                document.getElementById('score').innerText = 'Score: ' + score;
+                const wordDisplay = document.getElementById('word-display');
+                wordDisplay.innerHTML = '';
+                document.getElementById('hangman').innerText = '';
+                document.getElementById('timer').innerText = 'Time left: ' + timePerQuestion + 's';
+
+                for (let i = 0; i < currentWord.length; i++) {
+                    const letter = document.createElement('span');
+                    letter.className = 'letter';
+                    letter.innerHTML = '_';
+                    letter.dataset.letter = currentWord[i];
+                    wordDisplay.appendChild(letter);
+                }
+
+                setupLetters(currentWord);
+                startTimer();
+            } else {
+                alert('Game over! Your final score is: ' + score);
+                resetGame();
+            }
+        }
+
+        function setupLetters(word) {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const lettersDiv = document.getElementById('letters');
+            lettersDiv.innerHTML = '';
+
+            for (let i = 0; i < letters.length; i++) {
+                const letterBtn = document.createElement('button');
+                letterBtn.innerText = letters[i];
+                letterBtn.addEventListener('click', function() {
+                    checkLetter(letters[i], word);
+                    letterBtn.disabled = true;
+                });
+                lettersDiv.appendChild(letterBtn);
+            }
+        }
+
+        function checkLetter(letter, word) {
+            let correctGuess = false;
+            const letterElements = document.querySelectorAll('.letter');
+
+            letterElements.forEach(function(el) {
+                if (el.dataset.letter === letter) {
+                    el.innerText = letter;
+                    correctGuess = true;
+                }
+            });
+
+            if (!correctGuess) {
+                mistakes++;
+                updateHangman();
+                if (mistakes === 6) {
+                    alert('You lost this question! The correct word was: ' + word);
+                    stopTimer();
+                    nextQuestion();
+                }
+            }
+
+            checkWin();
+        }
+
+        function updateHangman() {
+            const hangman = document.getElementById('hangman');
+            const hangmanParts = [
+                ' O',     // Head
+                ' |',     // Body
+                '/|\\',  // Arms
+                ' |',     // Lower Body
+                '/',      // Left Leg
+                '\\'      // Right Leg
+            ];
+
+            hangman.innerText = hangmanParts.slice(0, mistakes).join('\n');
+        }
+
+        function checkWin() {
+            const letterElements = document.querySelectorAll('.letter');
+            let won = true;
+
+            letterElements.forEach(function(el) {
+                if (el.innerText === '_') {
+                    won = false;
+                }
+            });
+
+            if (won) {
+                alert('Congratulations, you got it right!');
+                score++;
+                stopTimer();
+                nextQuestion();
+            }
+        }
+
+        function startTimer() {
+            let timeLeft = timePerQuestion;
+            timerInterval = setInterval(function() {
+                timeLeft--;
+                document.getElementById('timer').innerText = 'Time left: ' + timeLeft + 's';
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('Time is up!');
+                    nextQuestion();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function resetGame() {
+            document.querySelector('.input-section').style.display = 'block';
+            document.querySelector('.settings-section').style.display = 'block';
+            document.querySelector('.game-section').style.display = 'none';
+        }
+
+        function shuffleArray(array1, array2) {
+            for (let i = array1.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array1[i], array1[j]] = [array1[j], array1[i]];
+                [array2[i], array2[j]] = [array2[j], array2[i]];
+            }
+        }
+    </script>
+</body>
+</html>
